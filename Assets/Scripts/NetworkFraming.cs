@@ -4,9 +4,8 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using UnityEngine;
 
-public class NetworkFraming : MonoBehaviour
+public static class NetworkFraming
 {
     //최대 허용 본문 크기
     public const int MaxBodySize = 64 * 1024; //64kb
