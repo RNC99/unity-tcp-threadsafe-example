@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -69,8 +70,12 @@ public class TcpClientHandler : MonoBehaviour
 
         try
         {
+            /* NetworkFraming.cs에서 처리
             byte[] data = Encoding.UTF8.GetBytes(message); //데이터 Encoding
             await _stream.WriteAsync(data, 0, data.Length); //전송
+            */
+
+            await NetworkFraming.SendFramedAsync(_stream, message, _cts.Token);
             Log($"송신: {message}");
         }
         catch (Exception e)
@@ -82,20 +87,30 @@ public class TcpClientHandler : MonoBehaviour
     //서버에서 온 데이터 수신
     private async Task ReceiveLoopAsync(CancellationToken token)
     {
-        var buffer = new byte[1024]; //합의된 버퍼 크기 지정
+        //var buffer = new byte[1024]; //합의된 버퍼 크기 지정 (프레임 설계를 통해 임의값으로 버퍼의 크기를 지정할 필요가 없어짐)
 
         try
         {
             while (IsConnected && !token.IsCancellationRequested) //연결 상태 확인
             {
+                /* 데이터 읽기 및 인코딩 부분 전체 NetworkFraming.cs에서 처리
                 int read = await _stream.ReadAsync(buffer, 0, buffer.Length, token); //데이터 읽기
                 if (read == 0) break;
 
                 string msg = Encoding.UTF8.GetString(buffer, 0, read); //데이터 Decoding
+                */
+
+                string msg = await NetworkFraming.ReceiveFramedAsync(_stream, token);
+                if (msg == null) break;
+
                 Log($"수신: {msg}");
             }
         }
         catch (OperationCanceledException) { } //정상 종료
+        catch (InvalidDataException e)
+        {
+            Log($"프로토콜 오류: {e.Message}");
+        }
         catch (Exception e)
         {
             Log($"수신 오류: {e.Message}");

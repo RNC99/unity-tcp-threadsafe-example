@@ -3,9 +3,9 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.IO;
 using UnityEngine;
 
 public class TcpServer : MonoBehaviour
@@ -116,22 +116,32 @@ public class TcpServer : MonoBehaviour
     private async Task ReceiveLoopAsync(TcpClient client, CancellationToken token)
     {
         var stream = client.GetStream(); //클라이언트의 Network Stream 가져오기
-        var buffer = new byte[1024]; //클라이언트와 합의된 크기의 버퍼 생성
+        //var buffer = new byte[1024]; 클라이언트와 합의된 크기의 버퍼 생성 (네트워크 프레이밍 기능 추가로 인한 삭제)
 
         try
         {
             while (client.Connected && !token.IsCancellationRequested) //미연결 상태 및 취소 확인
             {
+                /* NetworkFraming.cs에서 길이에 맞게 데이터를 가져오는 방식으로 변경
                 int read = await stream.ReadAsync(buffer, 0, buffer.Length, token); //Network Stream 읽기
                 if (read == 0) break; //데이터 없음 반환
+                */
 
-                string msg = Encoding.UTF8.GetString(buffer, 0, read).Trim(); //데이터 string Decoding
+                //string msg = Encoding.UTF8.GetString(buffer, 0, read).Trim(); //데이터 string Decoding (Encoding 또한 NetworkFraming.cs에서 진행하도록 변경)
+                string msg = await NetworkFraming.ReceiveFramedAsync(stream, token); //프레임 하나를 읽을 때까지 대기
+                if (msg == null) break;
+
                 Log($"수신: {msg}"); //데이터 로그 출력
 
                 await BroadcastAsync($"ECHO|{msg}", token); //클라이언트에게 받았다는 신호 전달
             }
         }
         catch (OperationCanceledException) { /* 정상 취소 */ }
+        catch (InvalidDataException e)
+        {
+            // 프로토콜 위반 종료.
+            Log($"프로토콜 오류: {e.Message}");
+        }
         catch (Exception e)
         {
             Log($"수신 오류: {e.Message}");
@@ -147,7 +157,7 @@ public class TcpServer : MonoBehaviour
     //서버가 클라이언트에게 데이터 송신
     private async Task BroadcastAsync(string message, CancellationToken token)
     {
-        byte[] data = Encoding.UTF8.GetBytes(message); //보낼 메세지 Encoding
+        //byte[] data = Encoding.UTF8.GetBytes(message); //보낼 메세지 Encoding (NetworkFraming.cs에서 데이터 불러오는 과정 처리)
 
         List<TcpClient> snapshot;
         lock (_clientsLock) snapshot = new List<TcpClient>(_clients); //클라이언트 리스트 캐싱
@@ -157,7 +167,8 @@ public class TcpServer : MonoBehaviour
             try
             {
                 if (c.Connected)
-                    await c.GetStream().WriteAsync(data, 0, data.Length, token); //데이터 전송
+                    //await c.GetStream().WriteAsync(data, 0, data.Length, token); //데이터 전송 (NetworkFraming.cs에서 처리하도록 변경)
+                    await NetworkFraming.SendFramedAsync(c.GetStream(), message, token);
             }
             catch { /* 개별 전송 실패는 무시하고 계속 */ }
         }
