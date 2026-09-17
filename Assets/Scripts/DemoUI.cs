@@ -20,7 +20,7 @@ public class DemoUI : MonoBehaviour
     [SerializeField] private Button burstTestButton;   //뭉침 테스트
     [SerializeField] private Button largeTestButton; //잘림 테스트
 
-    private const int MaxLines = 10; //최대 로그 줄 수
+    private const int MaxLines = 30; //최대 로그 줄 수
     private readonly System.Collections.Generic.Queue<string> _lines = new(); //네트워크 코드의 OnLog에 구독시킬 Queue
 
     void Start()
